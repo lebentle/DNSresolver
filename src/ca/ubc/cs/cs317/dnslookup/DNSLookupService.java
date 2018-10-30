@@ -4,8 +4,11 @@ import java.io.Console;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.net.DatagramPacket;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.nio.ByteBuffer;
+
 
 public class DNSLookupService {
 
@@ -174,6 +177,9 @@ public class DNSLookupService {
             System.err.println("Maximum number of indirection levels reached.");
             return Collections.emptySet();
         }
+        byte b = 0;
+        generateHeaderQuery(b);
+        retrieveResultsFromServer(node,rootServer);
 
         // TODO To be completed by the student
 
@@ -189,8 +195,43 @@ public class DNSLookupService {
      * @param server Address of the server to be used for the query.
      */
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
+        byte b = 0; 
+        generateHeaderQuery(b);
+      // TODO 
+        /*
+        socket.bind(new InetSocketAddress(8888));
+        DatagramPacket packet = new DatagramPacket();
+        String name := node.getHostName();
+    */
+
+
+
 
         // TODO To be completed by the student
+    }
+
+    public static String bytesToHexString(byte[] bytes){ 
+        StringBuilder sb = new StringBuilder(); 
+        for(byte b : bytes){ sb.append(String.format("%02x", b&0xff)); 
+    } 
+    return sb.toString(); 
+} 
+
+    // use the same byte[] array over and over again for better performance
+    // 
+    private static void generateHeaderQuery(byte qrCode) {
+        // some arbitary number
+        ByteBuffer byteOutput = ByteBuffer.allocate(4);
+        // Allocate Random Random
+        Random r = new Random();
+        int randInt = r.nextInt(65535);
+        System.out.println("*******");
+        System.out.println(randInt);
+        byteOutput.put((byte) (randInt >>> 8));
+        byteOutput.put((byte) randInt);
+        System.out.println(bytesToHexString(byteOutput.array()));
+        System.out.println("*******");
+        return;
     }
 
     private static void verbosePrintResourceRecord(ResourceRecord record, int rtype) {
