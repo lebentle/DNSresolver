@@ -209,7 +209,7 @@ public class DNSLookupService {
         byte[] b = byteOutput.array();
         byte[] b2 = Arrays.copyOfRange(b, 0, byteOutput.position());
         System.out.println(bytesToHexString(b2));
-        DatagramPacket packet = new DatagramPacket(b2,b2.length,server,53);
+        DatagramPacket packet = new DatagramPacket(b,b.length,server,53);
         // Send Packet; 
         try {
         socket.send(packet);
@@ -283,10 +283,18 @@ public class DNSLookupService {
         // it to a byte and place in byte array
         // QNAME 
         String str = node.getHostName();
+        String[] strsSplit = str.split("\\.");
         byte[] b = new byte[str.length() + 1];
-        for (int i = 0; i < str.length();i++){
-            b[i] = (byte) str.charAt(i);
+        int bytelen = 0;
+        for (int i = 0; i < strsSplit.length; i++){
+            b[bytelen] = (byte) strsSplit[i].length();
+            bytelen +=1;
+            for (int j = 0; j < strsSplit[i].length();j++) {
+                System.out.println(strsSplit[i].charAt(j));
+                b[bytelen] = (byte) strsSplit[i].charAt(j);
+                bytelen+=1;
         }
+    }
         // add terminator 
         b[str.length()] = 0;
         System.out.print(bytesToHexString(b));
