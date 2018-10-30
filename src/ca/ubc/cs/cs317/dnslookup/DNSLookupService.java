@@ -195,8 +195,9 @@ public class DNSLookupService {
      * @param server Address of the server to be used for the query.
      */
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
-        byte b = 0; 
-        generateHeaderQuery(b);
+        ByteBuffer byteOutput = ByteBuffer.allocate();
+        generateHeaderQuery(0,byteOutput);
+        
       // TODO 
         /*
         socket.bind(new InetSocketAddress(8888));
@@ -218,10 +219,9 @@ public class DNSLookupService {
 } 
 
     // use the same byte[] array over and over again for better performance
-    // 
-    private static void generateHeaderQuery(byte qrCode) {
+    // probably 
+    private static void generateHeaderQuery(Bool response, ByteBuffer byteOutput) {
         // some arbitary number
-        ByteBuffer byteOutput = ByteBuffer.allocate(4);
         // Allocate Random Random
         Random r = new Random();
         int randInt = r.nextInt(65535);
@@ -231,8 +231,27 @@ public class DNSLookupService {
         byteOutput.put((byte) randInt);
         System.out.println(bytesToHexString(byteOutput.array()));
         System.out.println("*******");
+        // This byte sets QR|   Opcode  |AA|TC|RD|RA
+        byteOutput.put((byte) 0);
+        // |RA|   Z    |   RCODE   | 
+        byteOutput.put((byte) 0);
+        //  QDCOUNT
+        byteOutput.put((byte) 0);
+        byteOutput.put((byte) 0);
+        // ANCOUNT
+        byteOutput.put((byte) 0);
+        byteOutput.put((byte) 0);
+        // NSCOUNT
+        byteOutput.put((byte) 0);
+        byteOutput.put((byte) 0);
+        // ARCOUNT
+        byteOutput.put((byte) 0);
+        byteOutput.put((byte) 0);
+
         return;
     }
+
+    public static void 
 
     private static void verbosePrintResourceRecord(ResourceRecord record, int rtype) {
         if (verboseTracing)
