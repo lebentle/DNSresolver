@@ -1,13 +1,17 @@
 package ca.ubc.cs.cs317.dnslookup;
 
 import java.io.Console;
+import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.DatagramPacket;
 import java.net.UnknownHostException;
+import java.net.InetSocketAddress;
 import java.util.*;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+
 
 
 public class DNSLookupService {
@@ -22,6 +26,9 @@ public class DNSLookupService {
     private static DNSCache cache = DNSCache.getInstance();
 
     private static Random random = new Random();
+    /*
+    private static Map<String, Integer>map = Map.of("A",1,"CNAME",5,"NS",2,"AAAA",28);
+    */
 
     /**
      * Main function, called when program is first invoked.
@@ -178,7 +185,6 @@ public class DNSLookupService {
             return Collections.emptySet();
         }
         byte b = 0;
-        generateHeaderQuery(b);
         retrieveResultsFromServer(node,rootServer);
 
         // TODO To be completed by the student
@@ -195,22 +201,36 @@ public class DNSLookupService {
      * @param server Address of the server to be used for the query.
      */
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
-        ByteBuffer byteOutput = ByteBuffer.allocate();
-        generateHeaderQuery(0,byteOutput);
-        
-      // TODO 
-        /*
-        socket.bind(new InetSocketAddress(8888));
-        DatagramPacket packet = new DatagramPacket();
-        String name := node.getHostName();
-    */
-
-
-
-
-        // TODO To be completed by the student
+        // TODO change allocate to 512 
+        ByteBuffer byteOutput = ByteBuffer.allocate(512);
+        FillHeaderQuery(false,byteOutput);
+        FillQuestionSection(node, byteOutput);
+        System.out.println(byteOutput.toString());
+        byte[] b = byteOutput.array();
+        byte[] b2 = Arrays.copyOfRange(b, 0, byteOutput.position());
+        System.out.println(bytesToHexString(b2));
+        DatagramPacket packet = new DatagramPacket(b2,b2.length,server,53);
+        // Send Packet; 
+        try {
+        socket.send(packet);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            System.exit(1);
+        }
+        // receive Packet
+        byte[] bytes = new byte[1024];
+        DatagramPacket recievedpacket = new DatagramPacket(bytes,bytes.length);
+        try {
+        socket.receive(recievedpacket);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            System.exit(1);
+        }
+        ByteBuffer byteInput = ByteBuffer.wrap(bytes);
+        System.out.println("printing reponse");
+        System.out.println(bytesToHexString(byteInput.array()));
     }
-
+    // Method to print bytes to HexString 
     public static String bytesToHexString(byte[] bytes){ 
         StringBuilder sb = new StringBuilder(); 
         for(byte b : bytes){ sb.append(String.format("%02x", b&0xff)); 
@@ -218,9 +238,9 @@ public class DNSLookupService {
     return sb.toString(); 
 } 
 
-    // use the same byte[] array over and over again for better performance
-    // probably 
-    private static void generateHeaderQuery(Bool response, ByteBuffer byteOutput) {
+    // Fills the Header Querry
+    // THis is a gross function. 
+    private static ByteBuffer FillHeaderQuery(boolean response, ByteBuffer byteOutput) {
         // some arbitary number
         // Allocate Random Random
         Random r = new Random();
@@ -231,13 +251,14 @@ public class DNSLookupService {
         byteOutput.put((byte) randInt);
         System.out.println(bytesToHexString(byteOutput.array()));
         System.out.println("*******");
+        // Need to put these into byte array 
         // This byte sets QR|   Opcode  |AA|TC|RD|RA
         byteOutput.put((byte) 0);
         // |RA|   Z    |   RCODE   | 
         byteOutput.put((byte) 0);
         //  QDCOUNT
         byteOutput.put((byte) 0);
-        byteOutput.put((byte) 0);
+        byteOutput.put((byte) 1);
         // ANCOUNT
         byteOutput.put((byte) 0);
         byteOutput.put((byte) 0);
@@ -247,11 +268,44 @@ public class DNSLookupService {
         // ARCOUNT
         byteOutput.put((byte) 0);
         byteOutput.put((byte) 0);
+        System.out.println("I should print out 12 bytes pos'n in the next line for ByteBuffer"); 
+        System.out.println(byteOutput.toString());
 
-        return;
+
+        return byteOutput;
     }
 
-    public static void 
+    // Fills out the Question Section into the ByteBuffer 
+    private static ByteBuffer FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
+        System.out.println("Entering Fill Question Section");
+        System.out.println("QNAME");
+        // loop through the string and change each element to a char and cast
+        // it to a byte and place in byte array
+        // QNAME 
+        String str = node.getHostName();
+        byte[] b = new byte[str.length() + 1];
+        for (int i = 0; i < str.length();i++){
+            b[i] = (byte) str.charAt(i);
+        }
+        // add terminator 
+        b[str.length()] = 0;
+        System.out.print(bytesToHexString(b));
+        byteOutput.put(b);
+        // QTYPE  4 bits
+
+        int qCode = node.getType().getCode();
+        System.out.println(qCode);
+        byteOutput.put((byte) (qCode >>> 8));
+        byteOutput.put((byte) qCode);
+        System.out.println(bytesToHexString(byteOutput.array()));
+        System.out.println(byteOutput.toString());
+        // QCLASS -- IN -- 1 
+        byteOutput.put((byte) 0);
+        byteOutput.put((byte) 1);
+
+        return byteOutput;
+    }
+
 
     private static void verbosePrintResourceRecord(ResourceRecord record, int rtype) {
         if (verboseTracing)
