@@ -203,7 +203,7 @@ public class DNSLookupService {
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
         // TODO change allocate to 512 
         ByteBuffer byteOutput = ByteBuffer.allocate(512);
-        FillHeaderQuery(false,byteOutput);
+        int id = FillHeaderQuery(false,byteOutput);
         FillQuestionSection(node, byteOutput);
         System.out.println(byteOutput.toString());
         byte[] b = byteOutput.array();
@@ -227,9 +227,46 @@ public class DNSLookupService {
             System.exit(1);
         }
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
-        System.out.println("printing reponse");
+        // Check the header of the reponse to see if valid 
+        System.out.println("Printing Reponse");
         System.out.println(bytesToHexString(byteInput.array()));
+        boolean isError = checkHeaderResponse(id,byteInput);
+
     }
+
+   public static boolean checkHeaderResponse(int id, ByteBuffer byteInput) {
+        // Checks Header to make sure proper id code returned 
+        byte[] headerInt = new byte[2];
+        byteInput.get(headerInt,0,2);
+        System.out.println("Checking ID");
+        System.out.printf("id is %d\n",id);
+        System.out.println(bytesToHexString(headerInt));
+        int getInt = 0;
+        for (int i = 0 ; i < headerInt.length; i++) {
+            getInt = getInt | (((headerInt[i] & 0xff) << (headerInt.length - i - 1) * 8));
+        }
+        System.out.printf("id recieved is %d\n",getInt);
+
+        // Check QR to see if response 
+        
+        System.out.println("checking QR CODE");
+        byte b3 = byteInput.get();
+        System.out.printf("byte is %d\n",(int) b3);
+        System.out.printf("byte is %02x\n",b3&0xff);
+        int b3transformed = ((b3 & 0xff) >>> 7);
+
+        System.out.printf("byte after shifting is %02x\n",b3transformed);
+
+        // Checks RCODE to make sure no error
+        
+        System.out.println("checking RCODE CODE");
+        byte b4 = byteInput.get();
+        System.out.println("byte 4 is");
+        System.out.printf(String.format("%02x", b4&0x0000000f));
+
+        return id == getInt;
+    }
+
     // Method to print bytes to HexString 
     public static String bytesToHexString(byte[] bytes){ 
         StringBuilder sb = new StringBuilder(); 
@@ -240,18 +277,16 @@ public class DNSLookupService {
 
     // Fills the Header Querry
     // THis is a gross function. 
-    private static ByteBuffer FillHeaderQuery(boolean response, ByteBuffer byteOutput) {
+    private static int FillHeaderQuery(boolean response, ByteBuffer byteOutput) {
         // some arbitary number
         // Allocate Random Random
         Random r = new Random();
         int randInt = r.nextInt(65535);
-        System.out.println("*******");
         System.out.println(randInt);
         byteOutput.put((byte) (randInt >>> 8));
         byteOutput.put((byte) randInt);
-        System.out.println(bytesToHexString(byteOutput.array()));
-        System.out.println("*******");
-        // Need to put these into byte array 
+
+        // TODO; Need to put these into byte array 
         // This byte sets QR|   Opcode  |AA|TC|RD|RA
         byteOutput.put((byte) 0);
         // |RA|   Z    |   RCODE   | 
@@ -268,12 +303,14 @@ public class DNSLookupService {
         // ARCOUNT
         byteOutput.put((byte) 0);
         byteOutput.put((byte) 0);
-        System.out.println("I should print out 12 bytes pos'n in the next line for ByteBuffer"); 
+        System.out.println("Generated Query Header");
         System.out.println(byteOutput.toString());
 
 
-        return byteOutput;
+        return randInt;
     }
+    // TODO:
+    // What if we send the request with the same ID? 
 
     // Fills out the Question Section into the ByteBuffer 
     private static ByteBuffer FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
@@ -290,7 +327,6 @@ public class DNSLookupService {
             b[bytelen] = (byte) strsSplit[i].length();
             bytelen +=1;
             for (int j = 0; j < strsSplit[i].length();j++) {
-                System.out.println(strsSplit[i].charAt(j));
                 b[bytelen] = (byte) strsSplit[i].charAt(j);
                 bytelen+=1;
         }
