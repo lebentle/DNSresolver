@@ -253,18 +253,17 @@ public class DNSLookupService {
         byte b3 = byteInput.get();
         System.out.printf("byte is %d\n",(int) b3);
         System.out.printf("byte is %02x\n",b3&0xff);
-        int b3transformed = ((b3 & 0xff) >>> 7);
+        int b3toInt = ((b3 & 0xff) >>> 7);
 
-        System.out.printf("byte after shifting is %02x\n",b3transformed);
+        System.out.printf("byte after shifting is %02x\n",b3toInt);
 
         // Checks RCODE to make sure no error
-        
         System.out.println("checking RCODE CODE");
         byte b4 = byteInput.get();
-        System.out.println("byte 4 is");
-        System.out.printf(String.format("%02x", b4&0x0000000f));
+        System.out.println("byte 4 is r-code");
+        System.out.printf(String.format("%02x", b4&0xff));
 
-        return id == getInt;
+        return true;
     }
 
     // Method to print bytes to HexString 
@@ -315,13 +314,14 @@ public class DNSLookupService {
     // Fills out the Question Section into the ByteBuffer 
     private static ByteBuffer FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
         System.out.println("Entering Fill Question Section");
-        System.out.println("QNAME");
+        // Generates QNAME 
         // loop through the string and change each element to a char and cast
         // it to a byte and place in byte array
-        // QNAME 
+        // QNAME
         String str = node.getHostName();
         String[] strsSplit = str.split("\\.");
-        byte[] b = new byte[str.length() + 1];
+        System.out.println(strsSplit);
+        byte[] b = new byte[str.length() + 2];
         int bytelen = 0;
         for (int i = 0; i < strsSplit.length; i++){
             b[bytelen] = (byte) strsSplit[i].length();
@@ -332,7 +332,7 @@ public class DNSLookupService {
         }
     }
         // add terminator 
-        b[str.length()] = 0;
+        b[str.length() + 1] = 0;
         System.out.print(bytesToHexString(b));
         byteOutput.put(b);
         // QTYPE  4 bits
