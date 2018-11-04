@@ -11,10 +11,10 @@ public class HeaderResponse {
 
 
     public HeaderResponse(int responseID, int qdcount, int ancount, int nscount, int arcount, boolean authoritative, boolean isError) {
-        this.qdcount = 0;
-        this.ancount = 0;
-        this.nscount = 0;
-        this.arcount = 0;
+        this.qdcount = qdcount;
+        this.ancount = ancount; 
+        this.nscount = nscount;
+        this.arcount = arcount;
         this.authoritative = authoritative;
         this.responseID = responseID;
         this.isError = isError;

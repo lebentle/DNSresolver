@@ -202,15 +202,11 @@ public class DNSLookupService {
      * @param server Address of the server to be used for the query.
      */
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
-        // TODO change allocate to 512 
         ByteBuffer byteOutput = ByteBuffer.allocate(512);
         int id = FillHeaderQuery(false,byteOutput);
-        FillQuestionSection(node, byteOutput);
-        System.out.println("Sending Request");
-        System.out.println(bytesToHexString(byteOutput.array()));
+        int qLen = FillQuestionSection(node, byteOutput);
 
         byte[] b = byteOutput.array();
-        byte[] b2 = Arrays.copyOfRange(b, 0, byteOutput.position());
         DatagramPacket packet = new DatagramPacket(b,b.length,server,53);
         // Send Packet; 
         try {
@@ -241,10 +237,38 @@ public class DNSLookupService {
         }
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
         // Check the header of the reponse to see if valid 
-        System.out.println("receiving packet");
-        System.out.println(bytesToHexString(byteInput.array()));
         HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
+        // Jump ahead by question length
+        int currPos = byteInput.position();
+        byteInput.position(currPos + qLen);
+        System.out.println(byteInput);
+        System.out.println(bytesToHexString(byteInput.array()));
 
+
+        ProcessAllResourceRecords(headerRes,byteInput);
+    }
+
+    public static void ProcessAllResourceRecords(HeaderResponse headerResponse,ByteBuffer byteInput) {
+
+        ResourceRecord[] answers = new ResourceRecord[headerResponse.ancount];
+        ResourceRecord[] nameservers = new ResourceRecord[headerResponse.nscount];
+        ResourceRecord[] ar = new ResourceRecord[headerResponse.arcount];
+        System.out.println(headerResponse.ancount);
+        for (int i = 0; i < headerResponse.ancount; i++) {
+            answers[i] = DecodeResourceRecord(byteInput);
+            System.out.println("I AM HERE");
+            verbosePrintResourceRecord(answers[i], 0);
+            cache.addResult(answers[i]);
+        }
+        for (int j = 0; j < headerResponse.nscount; j++){
+            nameservers[j] = DecodeResourceRecord(byteInput);
+            cache.addResult(nameservers[j]);
+        }
+        for (int k = 0; k < headerResponse.arcount; k++) {
+            ar[k] = DecodeResourceRecord(byteInput);
+            cache.addResult(ar[k]);
+
+        }
     }
 
    public static HeaderResponse DecodeHeaderResponse(int id, ByteBuffer byteInput) {
@@ -343,7 +367,7 @@ public class DNSLookupService {
         byteInput.position(exitMark);
         return rr;
     }
-
+    // Takes an an array of bytes and transforms to an int 
     public static int BytestoInt(byte[] bytes) {
         int getInt = 0;
         for (int i = 0 ; i < bytes.length; i++) {
@@ -351,7 +375,7 @@ public class DNSLookupService {
         }
         return getInt;
     }
-
+    // Takes an array of bytes and turns into an long 
     public static long BytestoLong(byte[] bytes) {
         long getInt = 0;
         for (int i = 0 ; i < bytes.length; i++) {
@@ -380,7 +404,7 @@ public class DNSLookupService {
         byteOutput.put((byte) (randInt >>> 8));
         byteOutput.put((byte) randInt);
 
-        // TODO; Need to put these into byte array 
+        // TODO; Need to put these into byte array and do one Put 
         // This byte sets QR|   Opcode  |AA|TC|RD|RA
         byteOutput.put((byte) 0);
         // |RA|   Z    |   RCODE   | 
@@ -407,12 +431,13 @@ public class DNSLookupService {
     // What if we send the request with the same ID? 
 
     // Fills out the Question Section into the ByteBuffer 
-    private static ByteBuffer FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
+    private static int FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
         System.out.println("Entering Fill Question Section");
         // Generates QNAME 
         // loop through the string and change each element to a char and cast
         // it to a byte and place in byte array
         // QNAME
+        int currPos = byteOutput.position();
         String str = node.getHostName();
         String[] strsSplit = str.split("\\.");
         System.out.println(strsSplit);
@@ -440,13 +465,15 @@ public class DNSLookupService {
         // QCLASS -- IN -- 1 
         byteOutput.put((byte) 0);
         byteOutput.put((byte) 1);
-
-        return byteOutput;
+        int finalPos = byteOutput.position();
+        return finalPos - currPos;
     }
 
     // returns the first byte at the pointer location
     private static byte messageDecompression(int pointer, ByteBuffer byteInput) {
         int offset = (pointer ^ 0xc000); // xor
+        System.out.println(pointer);
+        System.out.println(offset);
         return byteInput.get(offset);
     }
 
