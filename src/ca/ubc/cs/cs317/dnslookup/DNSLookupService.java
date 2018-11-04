@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.DatagramPacket;
 import java.net.UnknownHostException;
 import java.net.InetSocketAddress;
@@ -205,66 +206,126 @@ public class DNSLookupService {
         ByteBuffer byteOutput = ByteBuffer.allocate(512);
         int id = FillHeaderQuery(false,byteOutput);
         FillQuestionSection(node, byteOutput);
-        System.out.println(byteOutput.toString());
+        System.out.println("Sending Request");
+        System.out.println(bytesToHexString(byteOutput.array()));
+
         byte[] b = byteOutput.array();
         byte[] b2 = Arrays.copyOfRange(b, 0, byteOutput.position());
-        System.out.println(bytesToHexString(b2));
         DatagramPacket packet = new DatagramPacket(b,b.length,server,53);
         // Send Packet; 
         try {
-        socket.send(packet);
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            System.exit(1);
+            socket.send(packet);
+            socket.setSoTimeout(5000);
+        } catch (SocketTimeoutException ex){
+            // Try to resend time out 
+            try {
+                socket.send(packet);
+                socket.setSoTimeout(5000);
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.exit(1);
+            } 
+        } catch (IOException exp) {
+                exp.printStackTrace();
+                System.exit(1);
         }
         // receive Packet
         byte[] bytes = new byte[1024];
         DatagramPacket recievedpacket = new DatagramPacket(bytes,bytes.length);
+        
         try {
-        socket.receive(recievedpacket);
+            socket.receive(recievedpacket);
         } catch (IOException ex) {
             ex.printStackTrace();
             System.exit(1);
         }
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
         // Check the header of the reponse to see if valid 
-        System.out.println("Printing Reponse");
+        System.out.println("receiving packet");
         System.out.println(bytesToHexString(byteInput.array()));
-        boolean isError = checkHeaderResponse(id,byteInput);
+        HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
+        
 
     }
 
-   public static boolean checkHeaderResponse(int id, ByteBuffer byteInput) {
+   public static HeaderResponse DecodeHeaderResponse(int id, ByteBuffer byteInput) {
         // Checks Header to make sure proper id code returned 
+        boolean isError = false;
         byte[] headerInt = new byte[2];
         byteInput.get(headerInt,0,2);
-        System.out.println("Checking ID");
-        System.out.printf("id is %d\n",id);
-        System.out.println(bytesToHexString(headerInt));
         int getInt = 0;
         for (int i = 0 ; i < headerInt.length; i++) {
             getInt = getInt | (((headerInt[i] & 0xff) << (headerInt.length - i - 1) * 8));
         }
-        System.out.printf("id recieved is %d\n",getInt);
+        if (getInt != id) {
+            System.out.printf("Error: incorrect header id %d, expected %d\n",getInt,id);
+            isError = true;
+        }
 
-        // Check QR to see if response 
-        
-        System.out.println("checking QR CODE");
         byte b3 = byteInput.get();
-        System.out.printf("byte is %d\n",(int) b3);
-        System.out.printf("byte is %02x\n",b3&0xff);
         int b3toInt = ((b3 & 0xff) >>> 7);
-
-        System.out.printf("byte after shifting is %02x\n",b3toInt);
+        if (b3toInt !=  1){
+            System.out.printf("Error: QR expected 1, but got %d\n",b3toInt);
+        }
+        System.out.printf("Authoriative is %02x\n",b3 & 0x4);
+        boolean authoriative = ((b3 & 0x4) >> 2) == 1;
 
         // Checks RCODE to make sure no error
-        System.out.println("checking RCODE CODE");
-        byte b4 = byteInput.get();
-        System.out.println("byte 4 is r-code");
-        System.out.printf(String.format("%02x", b4&0xff));
+        int b4 = (byteInput.get() & 0x0f);
+        System.out.printf("RCODE is %02x\n",b4);
 
-        return true;
+
+        if (b4 != 0) {
+            System.out.printf("Error: incorrect RCODE %d, expected 0",b4);
+            isError = true;
+        }
+
+        // QDCOUnt // Change to some sort of loop
+        byte[] bytes = new byte[2];
+        byteInput.get(bytes,0,2);
+        int questionCount = BytestoInt(bytes);
+        byteInput.get(bytes,0,2);
+        int answerCount = BytestoInt(bytes);
+        byteInput.get(bytes,0,2);
+        int nsCount = BytestoInt(bytes);
+        byteInput.get(bytes,0,2);
+        int arCount = BytestoInt(bytes);
+        HeaderResponse header = new HeaderResponse(0,questionCount,answerCount,nsCount,arCount,authoriative,isError);
+        return header;
     }
+
+    public static void DecodeResourceRecord(ByteBuffer byteInput){
+        // TODO: Call Alvi's f(x)
+        byte[] bytes = new byte[2];
+        byteInput.get(bytes,0,2);
+        RecordType type = RecordType.getByCode(BytestoInt(bytes));
+        byteInput.get(bytes,0,2);
+        int classRR = BytestoInt(bytes);
+        byteInput.get(bytes,0,4);
+        long ttl = BytestoLong(bytes);
+        bytes = new byte[2];
+        byteInput.get(bytes,0,2);
+        int rdLength = BytestoInt(bytes);
+        // TODO: Call Alvi's f(x)
+        return;
+    }
+
+    public static int BytestoInt(byte[] bytes) {
+        int getInt = 0;
+        for (int i = 0 ; i < bytes.length; i++) {
+            getInt = getInt | (((bytes[i] & 0xff) << (bytes.length - i - 1) * 8));
+        }
+        return getInt;
+    }
+
+    public static long BytestoLong(byte[] bytes) {
+        long getInt = 0;
+        for (int i = 0 ; i < bytes.length; i++) {
+            getInt = getInt | (((bytes[i] & 0xff) << (bytes.length - i - 1) * 8));
+        }
+        return getInt;
+    }
+
 
     // Method to print bytes to HexString 
     public static String bytesToHexString(byte[] bytes){ 
@@ -331,6 +392,7 @@ public class DNSLookupService {
                 bytelen+=1;
         }
     }
+
         // add terminator 
         b[str.length() + 1] = 0;
         System.out.print(bytesToHexString(b));
@@ -341,8 +403,6 @@ public class DNSLookupService {
         System.out.println(qCode);
         byteOutput.put((byte) (qCode >>> 8));
         byteOutput.put((byte) qCode);
-        System.out.println(bytesToHexString(byteOutput.array()));
-        System.out.println(byteOutput.toString());
         // QCLASS -- IN -- 1 
         byteOutput.put((byte) 0);
         byteOutput.put((byte) 1);
@@ -374,4 +434,5 @@ public class DNSLookupService {
                     node.getType(), record.getTTL(), record.getTextResult());
         }
     }
+
 }
