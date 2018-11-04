@@ -244,7 +244,6 @@ public class DNSLookupService {
         System.out.println("receiving packet");
         System.out.println(bytesToHexString(byteInput.array()));
         HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
-        
 
     }
 
@@ -294,8 +293,21 @@ public class DNSLookupService {
         return header;
     }
 
-    public static void DecodeResourceRecord(ByteBuffer byteInput){
-        // TODO: Call Alvi's f(x)
+    public static ResourceRecord DecodeResourceRecord(ByteBuffer byteInput){
+        // gets the exit position to set the bytebuffer
+        int mark = byteInput.position();
+        int exitMark = mark;
+        while (byteInput.get() != 0x00) {
+            exitMark += 1;
+        }
+
+        byteInput.position(mark);
+        StringBuilder result = new StringBuilder();
+        String hostName = obtainMessage(byteInput.get(), byteInput, result);
+
+        // set the buffer back to normal exit spot
+        byteInput.position(exitMark);
+
         byte[] bytes = new byte[2];
         byteInput.get(bytes,0,2);
         RecordType type = RecordType.getByCode(BytestoInt(bytes));
@@ -306,8 +318,30 @@ public class DNSLookupService {
         bytes = new byte[2];
         byteInput.get(bytes,0,2);
         int rdLength = BytestoInt(bytes);
-        // TODO: Call Alvi's f(x)
-        return;
+
+        exitMark = byteInput.position() + rdLength;
+        String rdata = "";
+        InetAddress ip;
+        StringBuilder sb = new StringBuilder();
+        ResourceRecord rr = new ResourceRecord(hostName, type, ttl, rdata);
+        if (type.getCode() == 1 || type.getCode() == 28) {
+            //make it into an ip address
+            byte[] b = new byte[rdLength];
+            byteInput.get(b, 0, rdLength);
+            try {
+                ip = InetAddress.getByAddress(b);
+                rr = new ResourceRecord(hostName, type, ttl, ip);
+                rdata = ip.toString();
+            } catch (UnknownHostException e) {
+                System.err.println("Invalid server (" + e.getMessage() + ").");
+                System.exit(1);
+            }
+        } else if (type.getCode() == 2 || type.getCode() == 5) {
+             rdata = obtainMessage(byteInput.get(), byteInput, sb);
+             rr = new ResourceRecord(hostName, type, ttl, rdata);
+        }
+        byteInput.position(exitMark);
+        return rr;
     }
 
     public static int BytestoInt(byte[] bytes) {
@@ -410,6 +444,36 @@ public class DNSLookupService {
         return byteOutput;
     }
 
+    // returns the first byte at the pointer location
+    private static byte messageDecompression(int pointer, ByteBuffer byteInput) {
+        int offset = (pointer ^ 0xc000); // xor
+        return byteInput.get(offset);
+    }
+
+    /** take in a byte
+    * @param pointerOrLength First byte that could be a pointer or the number of characters
+    * @param byteInput The ByteBuffer containing Resource Records
+    * @param result The name of the website
+    */
+    private static String obtainMessage(byte pointerOrLength, ByteBuffer byteInput, StringBuilder result) {
+        // end of name case
+        if ((pointerOrLength & 0xff) == 0x00) {
+            // get rid of the period at the end
+            return result.substring(0, result.length() - 1);
+        // case where first two bits are 11 so it's a pointer
+        } else if ((pointerOrLength & 0xc0) == 0xc0) {
+            int pointer = (pointerOrLength << 8) + byteInput.get();
+            byte newPointerOrLength = messageDecompression(pointer, byteInput);
+            return obtainMessage(newPointerOrLength, byteInput, result);
+        // case where it is length
+        } else {
+            for (int i = 0; i < pointerOrLength; i++) {
+                result.append((char) byteInput.get());
+            }
+            result.append(".");
+            return obtainMessage(byteInput.get(), byteInput, result);
+        }
+    }
 
     private static void verbosePrintResourceRecord(ResourceRecord record, int rtype) {
         if (verboseTracing)
