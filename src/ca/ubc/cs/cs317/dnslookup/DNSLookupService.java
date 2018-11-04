@@ -254,6 +254,7 @@ public class DNSLookupService {
         ResourceRecord[] nameservers = new ResourceRecord[headerResponse.nscount];
         ResourceRecord[] ar = new ResourceRecord[headerResponse.arcount];
         System.out.println(headerResponse.ancount);
+
         for (int i = 0; i < headerResponse.ancount; i++) {
             answers[i] = DecodeResourceRecord(byteInput);
             System.out.println("I AM HERE");
@@ -489,7 +490,7 @@ public class DNSLookupService {
             return result.substring(0, result.length() - 1);
         // case where first two bits are 11 so it's a pointer
         } else if ((pointerOrLength & 0xc0) == 0xc0) {
-            int pointer = (pointerOrLength << 8) + byteInput.get();
+            int pointer = ((int) pointerOrLength << 8) + byteInput.get();
             byte newPointerOrLength = messageDecompression(pointer, byteInput);
             return obtainMessage(newPointerOrLength, byteInput, result);
         // case where it is length
