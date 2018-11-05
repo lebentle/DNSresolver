@@ -247,7 +247,7 @@ public class DNSLookupService {
             DecodeQuestion(byteInput);
         }
 
-        System.out.println("\n" + bytesToHexString(byteInput.array()));
+      //   System.out.println("\n" + bytesToHexString(byteInput.array()));
 
         ResourceRecords records = ProcessAllResourceRecords(headerRes,byteInput);
         ResourceRecord[] answers = records.getAnswers();
@@ -255,18 +255,16 @@ public class DNSLookupService {
         ResourceRecord[] nameservers = records.getNameServers();
         // If All Answers are CNAMES then query the same RootDNS using the CNAME 
         if (answers.length != 0) {
-            boolean newQuery = true; 
+            int cNames = 0; 
             for (int i =0; i < answers.length; i++) {
-                if (answers[i].getType() != RecordType.CNAME){
-                    newQuery = false;
-                    break;
+                if (answers[i].getType() == RecordType.CNAME){
+                    cNames++;
                 } 
-            }
-            if (newQuery) {
+            } if (cNames == answers.length) {
+                System.out.println("********");
                 getResults(new DNSNode(answers[0].getTextResult(), answers[0].getType()),currentIndirection + 1);
             }
-        }
-        else if (answers.length == 0 && nameservers.length != 0){
+        } else if (answers.length == 0 && nameservers.length != 0){
             for (int j =0; j< nameservers.length; j++) {
                 // TODO: Ask Alvis if this is even possible 
                 if (nameservers[j].getType() == RecordType.NS) {
@@ -274,17 +272,19 @@ public class DNSLookupService {
                         for (ResourceRecord rr :addnRecordToQuery){
                             Set<ResourceRecord> addnRecord = cache.getCachedResults(rr.getNode());
                             if (!addnRecord.isEmpty()){
-                                for (ResourceRecord addRec :addnRecord)
-                                retrieveResultsFromServer(node, addRec.getInetResult());
-                                break;
+                                for (ResourceRecord addRec : addnRecord) {
+                                    System.out.println("Doing another query");
+                                    retrieveResultsFromServer(node, addRec.getInetResult());
+                                    break;
+                                }
                             }
+                            break;
                         }
                     }
                 }
-            // Pick from Additional Records for anytype that is not a CNAME 
             } else if (answers.length == 0 && nameservers.length == 0){
                   for (int i =0; i< addrecords.length; i++) {
-                        if (addrecords[i].getType() == RecordType.A || addrecords[i].getType() == RecordType.AAAA){
+                        if (addrecords[i].getType() == RecordType.A){
                             retrieveResultsFromServer(node, addrecords[i].getInetResult());
                             break;
                         }
