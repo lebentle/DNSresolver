@@ -249,6 +249,7 @@ public class DNSLookupService {
 
       //   System.out.println("\n" + bytesToHexString(byteInput.array()));
 
+
         ResourceRecords records = ProcessAllResourceRecords(headerRes,byteInput);
         ResourceRecord[] answers = records.getAnswers();
         ResourceRecord[] addrecords = records.getAR();
