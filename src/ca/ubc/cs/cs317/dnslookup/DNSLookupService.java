@@ -206,8 +206,10 @@ public class DNSLookupService {
         FillQuestionSection(node, byteOutput);
         verbosePrintQueryID(id, node, server.getHostAddress());
 
-        byte[] b = byteOutput.array();
-        DatagramPacket packet = new DatagramPacket(b,b.length,server,53);
+        byte[] b = Arrays.copyOfRange(byteOutput.array(), 0, byteOutput.position());
+        System.out.println(bytesToHexString(b));
+        DatagramPacket packet = new DatagramPacket(b,b.length,server,DEFAULT_DNS_PORT);
+
         // Send Packet; 
         try {
             socket.send(packet);
@@ -228,14 +230,16 @@ public class DNSLookupService {
         // receive Packet
         byte[] bytes = new byte[1024];
         DatagramPacket recievedpacket = new DatagramPacket(bytes,bytes.length);
-        
         try {
             socket.receive(recievedpacket);
+            System.out.println(recievedpacket.getPort());
+            System.out.println(recievedpacket.getAddress());
         } catch (IOException ex) {
             ex.printStackTrace();
             System.exit(1);
         }
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
+
         // Check the header of the reponse to see if valid 
         HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
         if (headerRes.isError) {
@@ -276,13 +280,12 @@ public class DNSLookupService {
                             if (!addnRecord.isEmpty()){
                                 for (ResourceRecord addRec : addnRecord) {
                                     System.out.println("Doing another query");
+                                    System.out.println(addRec.getInetResult());
                                     retrieveResultsFromServer(node, addRec.getInetResult());
-                                    break;
+                                    return;
                                 }
                             }
-                            break;
                         }
-                    break; 
                     }
                 }
             } else if (answers.length == 0 && nameservers.length == 0){
@@ -341,7 +344,8 @@ public class DNSLookupService {
         if (b3toInt !=  1){
             System.out.printf("Error: QR expected 1, but got %d\n",b3toInt);
         }
-        boolean authoritative = ((b3 & 0x4) >> 2) == 1;
+        boolean authoritative = ((b3 & 0x4) >>> 2) == 1;
+        System.out.printf("authoritative is %d\n",((b3 & 0x4) >>> 2));
 
         // Checks RCODE to make sure no error
         int b4 = (byteInput.get() & 0x0f);
@@ -361,7 +365,7 @@ public class DNSLookupService {
         int nsCount = BytestoInt(bytes);
         byteInput.get(bytes,0,2);
         int arCount = BytestoInt(bytes);
-        HeaderResponse header = new HeaderResponse(0,questionCount,answerCount,nsCount,arCount,authoritative,isError);
+        HeaderResponse header = new HeaderResponse(getInt,questionCount,answerCount,nsCount,arCount,authoritative,isError);
         return header;
     }
 
