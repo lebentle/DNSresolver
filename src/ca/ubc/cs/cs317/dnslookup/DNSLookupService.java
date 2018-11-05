@@ -258,7 +258,6 @@ public class DNSLookupService {
             answers[i] = DecodeResourceRecord(byteInput);
             System.out.println("I AM HERE");
             verbosePrintResourceRecord(answers[i], 0);
-            System.out.println("FIND ME");
             cache.addResult(answers[i]);
         }
         for (int j = 0; j < headerResponse.nscount; j++){
@@ -478,7 +477,8 @@ public class DNSLookupService {
     // returns the first byte at the pointer location
     private static byte messageDecompression(int pointer, ByteBuffer byteInput) {
         int offset = (pointer ^ 0xc000); // xor
-        return byteInput.get(offset);
+        byteInput.position(offset);
+        return byteInput.get();
     }
 
     /** take in a byte
@@ -493,7 +493,7 @@ public class DNSLookupService {
             return result.substring(0, result.length() - 1);
         // case where first two bits are 11 so it's a pointer
         } else if ((pointerOrLength & 0xc0) == 0xc0) {
-            int b = byteInput.get();
+            int b = byteInput.get() & 0xff;
             int pointer = ((pointerOrLength & 0xff) << 8) + b;
             byte newPointerOrLength = messageDecompression(pointer, byteInput);
             return obtainMessage(newPointerOrLength, byteInput, result);
