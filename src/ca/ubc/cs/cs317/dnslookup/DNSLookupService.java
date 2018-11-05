@@ -238,11 +238,16 @@ public class DNSLookupService {
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
         // Check the header of the reponse to see if valid 
         HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
+        if (headerRes.isError) {
+            return;
+        }
         verbosePrintResponseID(id, headerRes.authoritative);
         // Jump ahead of the questions
         for (int i = 0; i < headerRes.qdcount; i++) {
             DecodeQuestion(byteInput);
         }
+
+        System.out.println("\n" + bytesToHexString(byteInput.array()));
 
         ResourceRecords records = ProcessAllResourceRecords(headerRes,byteInput);
         ResourceRecord[] answers = records.getAnswers();
@@ -339,7 +344,7 @@ public class DNSLookupService {
         int b4 = (byteInput.get() & 0x0f);
 
         if (b4 != 0) {
-            System.out.printf("Error: incorrect RCODE %d, expected 0",b4);
+            System.out.printf("Error: incorrect RCODE %d, expected 0\n",b4);
             isError = true;
         }
 
