@@ -203,7 +203,7 @@ public class DNSLookupService {
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
         ByteBuffer byteOutput = ByteBuffer.allocate(512);
         int id = FillHeaderQuery(false,byteOutput);
-        int qLen = FillQuestionSection(node, byteOutput);
+        FillQuestionSection(node, byteOutput);
 
         byte[] b = byteOutput.array();
         DatagramPacket packet = new DatagramPacket(b,b.length,server,53);
@@ -461,13 +461,12 @@ public class DNSLookupService {
     // What if we send the request with the same ID? 
 
     // Fills out the Question Section into the ByteBuffer 
-    private static int FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
+    private static void FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
         System.out.println("Entering Fill Question Section");
         // Generates QNAME 
         // loop through the string and change each element to a char and cast
         // it to a byte and place in byte array
         // QNAME
-        int currPos = byteOutput.position();
         String str = node.getHostName();
         String[] strsSplit = str.split("\\.");
         System.out.println(strsSplit);
@@ -495,8 +494,7 @@ public class DNSLookupService {
         // QCLASS -- IN -- 1 
         byteOutput.put((byte) 0);
         byteOutput.put((byte) 1);
-        int finalPos = byteOutput.position();
-        return finalPos - currPos;
+        return;
     }
 
     // returns the first byte at the pointer location
