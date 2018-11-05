@@ -293,19 +293,19 @@ public class DNSLookupService {
         ResourceRecord[] nameservers = new ResourceRecord[headerResponse.nscount];
         ResourceRecord[] ar = new ResourceRecord[headerResponse.arcount];
 
-        System.out.printf("  Answers (%d)\n", headerResponse.ancount);
+        verbosePrintRRTitle("Answers", headerResponse.ancount);
         for (int i = 0; i < headerResponse.ancount; i++) {
             answers[i] = DecodeResourceRecord(byteInput);
             verbosePrintResourceRecord(answers[i], answers[i].getType().getCode());
             cache.addResult(answers[i]);
         }
-        System.out.printf("  Nameservers (%d)\n", headerResponse.nscount);
+        verbosePrintRRTitle("Nameservers", headerResponse.nscount);
         for (int j = 0; j < headerResponse.nscount; j++){
             nameservers[j] = DecodeResourceRecord(byteInput);
             verbosePrintResourceRecord(nameservers[j], nameservers[j].getType().getCode());
             cache.addResult(nameservers[j]);
         }
-        System.out.printf("  Additional Information (%d)\n", headerResponse.arcount);
+        verbosePrintRRTitle("Additional Information", headerResponse.arcount);
         for (int k = 0; k < headerResponse.arcount; k++) {
             ar[k] = DecodeResourceRecord(byteInput);
             verbosePrintResourceRecord(ar[k], ar[k].getType().getCode());
@@ -393,7 +393,6 @@ public class DNSLookupService {
         bytes = new byte[2];
         byteInput.get(bytes,0,2);
         int rdLength = BytestoInt(bytes);
-
         exitMark = byteInput.position() + rdLength;
         String rdata = "";
         InetAddress ip;
@@ -525,7 +524,11 @@ public class DNSLookupService {
         // end of name case
         if ((pointerOrLength & 0xff) == 0x00) {
             // get rid of the period at the end
-            return result.substring(0, result.length() - 1);
+            int endLength = 0;
+            if (result.length() > 0) {
+                endLength = result.length() - 1;
+            }
+            return result.substring(0, endLength);
         // case where first two bits are 11 so it's a pointer
         } else if ((pointerOrLength & 0xc0) == 0xc0) {
             int b = byteInput.get() & 0xff;
@@ -554,6 +557,11 @@ public class DNSLookupService {
         if (verboseTracing)
             System.out.format("Response ID: %d Authoritative = %s\n",
                     id, auth);
+    }
+
+    private static void verbosePrintRRTitle(String title, int count) {
+        if (verboseTracing)
+            System.out.printf("  %s (%d)\n", title, count);
     }
 
     private static void verbosePrintResourceRecord(ResourceRecord record, int rtype) {
