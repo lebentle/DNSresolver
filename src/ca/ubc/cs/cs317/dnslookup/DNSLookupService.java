@@ -27,9 +27,8 @@ public class DNSLookupService {
     private static DNSCache cache = DNSCache.getInstance();
 
     private static Random random = new Random();
-    /*
-    private static Map<String, Integer>map = Map.of("A",1,"CNAME",5,"NS",2,"AAAA",28);
-    */
+    private static int currentIndirection; 
+
 
     /**
      * Main function, called when program is first invoked.
@@ -185,7 +184,7 @@ public class DNSLookupService {
             System.err.println("Maximum number of indirection levels reached.");
             return Collections.emptySet();
         }
-        byte b = 0;
+        currentIndirection = indirectionLevel;
         retrieveResultsFromServer(node,rootServer);
 
         // TODO To be completed by the student
@@ -246,10 +245,31 @@ public class DNSLookupService {
         System.out.println(bytesToHexString(byteInput.array()));
 
 
-        ProcessAllResourceRecords(headerRes,byteInput);
-    }
+        ResourceRecords records = ProcessAllResourceRecords(headerRes,byteInput);
+        ResourceRecord[] answers = records.getAnswers();
+        ResourceRecord[] addrecords = records.getAR();
 
-    public static void ProcessAllResourceRecords(HeaderResponse headerResponse,ByteBuffer byteInput) {
+        if (answers.length != 0) {
+            for (int i =0; i < answers.length; i++) {
+                // if one answer with no CNAM≈E type then break
+                if (answers[i].getType() != RecordType.CNAME){
+                    break;
+                } else {
+                    getResults(new DNSNode(answers[i].getTextResult(), RecordType.A),currentIndirection + 1);
+                }
+            }
+        }
+        if (answers.length == 0 && addrecords.length > 0){
+            for (int j =0; j< addrecords.length; j++) {
+                if (addrecords[j].getType() != RecordType.CNAME) {
+                        retrieveResultsFromServer(node, addrecords[0].getInetResult());
+                        break;
+                    }
+                }
+            }
+        }
+
+    public static ResourceRecords ProcessAllResourceRecords(HeaderResponse headerResponse,ByteBuffer byteInput) {
 
         ResourceRecord[] answers = new ResourceRecord[headerResponse.ancount];
         ResourceRecord[] nameservers = new ResourceRecord[headerResponse.nscount];
@@ -258,25 +278,18 @@ public class DNSLookupService {
 
         for (int i = 0; i < headerResponse.ancount; i++) {
             answers[i] = DecodeResourceRecord(byteInput);
-            System.out.println("I AM HERE");
-            verbosePrintResourceRecord(answers[i], 0);
             cache.addResult(answers[i]);
         }
         for (int j = 0; j < headerResponse.nscount; j++){
             nameservers[j] = DecodeResourceRecord(byteInput);
-            System.out.println("NAME SERVERS");
-            verbosePrintResourceRecord(nameservers[j], 0);
             cache.addResult(nameservers[j]);
         }
         for (int k = 0; k < headerResponse.arcount; k++) {
             ar[k] = DecodeResourceRecord(byteInput);
-            System.out.println("AR");
-            verbosePrintResourceRecord(ar[k], 0);
             cache.addResult(ar[k]);
-
         }
+        return new ResourceRecords(answers,nameservers,ar);
     }
-
    public static HeaderResponse DecodeHeaderResponse(int id, ByteBuffer byteInput) {
         // Checks Header to make sure proper id code returned 
         boolean isError = false;
