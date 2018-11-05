@@ -238,9 +238,10 @@ public class DNSLookupService {
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
         // Check the header of the reponse to see if valid 
         HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
-        // Jump ahead by question length
-        int currPos = byteInput.position();
-        byteInput.position(currPos + qLen);
+        // Jump ahead of the questions
+        for (int i = 0; i < headerRes.qdcount; i++) {
+            DecodeQuestion(byteInput);
+        }
         System.out.println(byteInput);
         System.out.println(bytesToHexString(byteInput.array()));
 
@@ -321,7 +322,17 @@ public class DNSLookupService {
         return header;
     }
 
-    public static ResourceRecord DecodeResourceRecord(ByteBuffer byteInput){
+    // function to move the position of the byteInput to a suitable Pos
+    public static void DecodeQuestion(ByteBuffer byteInput) {
+        int exitMark = byteInput.position();
+        while (byteInput.get() != 0x00) {
+            exitMark += 1;
+        }
+        exitMark += 5; // Get past QNAME 0x00 terminator, QTYPE, and QCLASS fields
+        byteInput.position(exitMark);
+    }
+
+    public static ResourceRecord DecodeResourceRecord(ByteBuffer byteInput) {
         // gets the exit position to set the bytebuffer
         int mark = byteInput.position();
         int exitMark = mark;
