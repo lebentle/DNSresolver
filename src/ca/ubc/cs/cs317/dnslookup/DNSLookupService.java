@@ -270,6 +270,7 @@ public class DNSLookupService {
                 // TODO: Ask Alvis if this is even possible 
                 if (nameservers[j].getType() == RecordType.NS) {
                         Set<ResourceRecord> addnRecordToQuery = cache.getCachedResults(new DNSNode(nameservers[j].getTextResult(), RecordType.A));
+                        System.out.println(addnRecordToQuery);
                         for (ResourceRecord rr :addnRecordToQuery){
                             Set<ResourceRecord> addnRecord = cache.getCachedResults(rr.getNode());
                             if (!addnRecord.isEmpty()){
@@ -281,6 +282,7 @@ public class DNSLookupService {
                             }
                             break;
                         }
+                    break; 
                     }
                 }
             } else if (answers.length == 0 && nameservers.length == 0){
@@ -348,7 +350,7 @@ public class DNSLookupService {
             System.out.printf("Error: incorrect RCODE %d, expected 0\n",b4);
             isError = true;
         }
-
+        System.out.println(isError);
         // QDCOUnt // Change to some sort of loop
         byte[] bytes = new byte[2];
         byteInput.get(bytes,0,2);
@@ -449,7 +451,6 @@ public class DNSLookupService {
 } 
 
     // Fills the Header Querry
-    // THis is a gross function. 
     private static int FillHeaderQuery(boolean response, ByteBuffer byteOutput) {
         // some arbitary number
         // Allocate Random Random
