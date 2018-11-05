@@ -202,8 +202,9 @@ public class DNSLookupService {
      */
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
         ByteBuffer byteOutput = ByteBuffer.allocate(512);
-        int id = FillHeaderQuery(false,byteOutput);
+        int id = FillHeaderQuery(false, byteOutput);
         FillQuestionSection(node, byteOutput);
+        verbosePrintQueryID(id, node, server.getHostAddress());
 
         byte[] b = byteOutput.array();
         DatagramPacket packet = new DatagramPacket(b,b.length,server,53);
@@ -212,7 +213,7 @@ public class DNSLookupService {
             socket.send(packet);
             socket.setSoTimeout(5000);
         } catch (SocketTimeoutException ex){
-            // Try to resend time out 
+            // Try to resend time out
             try {
                 socket.send(packet);
                 socket.setSoTimeout(5000);
@@ -237,13 +238,11 @@ public class DNSLookupService {
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
         // Check the header of the reponse to see if valid 
         HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
+        verbosePrintResponseID(id, headerRes.authoritative);
         // Jump ahead of the questions
         for (int i = 0; i < headerRes.qdcount; i++) {
             DecodeQuestion(byteInput);
         }
-        System.out.println(byteInput);
-        System.out.println(bytesToHexString(byteInput.array()));
-
 
         ResourceRecords records = ProcessAllResourceRecords(headerRes,byteInput);
         ResourceRecord[] answers = records.getAnswers();
@@ -274,18 +273,23 @@ public class DNSLookupService {
         ResourceRecord[] answers = new ResourceRecord[headerResponse.ancount];
         ResourceRecord[] nameservers = new ResourceRecord[headerResponse.nscount];
         ResourceRecord[] ar = new ResourceRecord[headerResponse.arcount];
-        System.out.println(headerResponse.ancount);
 
+        System.out.printf("  Answers (%d)\n", headerResponse.ancount);
         for (int i = 0; i < headerResponse.ancount; i++) {
             answers[i] = DecodeResourceRecord(byteInput);
+            verbosePrintResourceRecord(answers[i], answers[i].getType().getCode());
             cache.addResult(answers[i]);
         }
+        System.out.printf("  Nameservers (%d)\n", headerResponse.nscount);
         for (int j = 0; j < headerResponse.nscount; j++){
             nameservers[j] = DecodeResourceRecord(byteInput);
+            verbosePrintResourceRecord(nameservers[j], nameservers[j].getType().getCode());
             cache.addResult(nameservers[j]);
         }
+        System.out.printf("  Additional Information (%d)\n", headerResponse.arcount);
         for (int k = 0; k < headerResponse.arcount; k++) {
             ar[k] = DecodeResourceRecord(byteInput);
+            verbosePrintResourceRecord(ar[k], ar[k].getType().getCode());
             cache.addResult(ar[k]);
         }
         return new ResourceRecords(answers,nameservers,ar);
@@ -309,13 +313,10 @@ public class DNSLookupService {
         if (b3toInt !=  1){
             System.out.printf("Error: QR expected 1, but got %d\n",b3toInt);
         }
-        System.out.printf("Authoriative is %02x\n",b3 & 0x4);
-        boolean authoriative = ((b3 & 0x4) >> 2) == 1;
+        boolean authoritative = ((b3 & 0x4) >> 2) == 1;
 
         // Checks RCODE to make sure no error
         int b4 = (byteInput.get() & 0x0f);
-        System.out.printf("RCODE is %02x\n",b4);
-
 
         if (b4 != 0) {
             System.out.printf("Error: incorrect RCODE %d, expected 0",b4);
@@ -332,7 +333,7 @@ public class DNSLookupService {
         int nsCount = BytestoInt(bytes);
         byteInput.get(bytes,0,2);
         int arCount = BytestoInt(bytes);
-        HeaderResponse header = new HeaderResponse(0,questionCount,answerCount,nsCount,arCount,authoriative,isError);
+        HeaderResponse header = new HeaderResponse(0,questionCount,answerCount,nsCount,arCount,authoritative,isError);
         return header;
     }
 
@@ -414,7 +415,6 @@ public class DNSLookupService {
         return getInt;
     }
 
-
     // Method to print bytes to HexString 
     public static String bytesToHexString(byte[] bytes){ 
         StringBuilder sb = new StringBuilder(); 
@@ -430,7 +430,6 @@ public class DNSLookupService {
         // Allocate Random Random
         Random r = new Random();
         int randInt = r.nextInt(65535);
-        System.out.println(randInt);
         byteOutput.put((byte) (randInt >>> 8));
         byteOutput.put((byte) randInt);
 
@@ -451,9 +450,6 @@ public class DNSLookupService {
         // ARCOUNT
         byteOutput.put((byte) 0);
         byteOutput.put((byte) 0);
-        System.out.println("Generated Query Header");
-        System.out.println(byteOutput.toString());
-
 
         return randInt;
     }
@@ -462,33 +458,29 @@ public class DNSLookupService {
 
     // Fills out the Question Section into the ByteBuffer 
     private static void FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
-        System.out.println("Entering Fill Question Section");
         // Generates QNAME 
         // loop through the string and change each element to a char and cast
         // it to a byte and place in byte array
         // QNAME
         String str = node.getHostName();
         String[] strsSplit = str.split("\\.");
-        System.out.println(strsSplit);
         byte[] b = new byte[str.length() + 2];
         int bytelen = 0;
-        for (int i = 0; i < strsSplit.length; i++){
+        for (int i = 0; i < strsSplit.length; i++) {
             b[bytelen] = (byte) strsSplit[i].length();
             bytelen +=1;
             for (int j = 0; j < strsSplit[i].length();j++) {
                 b[bytelen] = (byte) strsSplit[i].charAt(j);
                 bytelen+=1;
+            }
         }
-    }
 
         // add terminator 
         b[str.length() + 1] = 0;
-        System.out.print(bytesToHexString(b));
         byteOutput.put(b);
         // QTYPE  4 bits
 
         int qCode = node.getType().getCode();
-        System.out.println(qCode);
         byteOutput.put((byte) (qCode >>> 8));
         byteOutput.put((byte) qCode);
         // QCLASS -- IN -- 1 
@@ -530,6 +522,18 @@ public class DNSLookupService {
             }
             return obtainMessage(byteInput.get(), byteInput, result);
         }
+    }
+
+    private static void verbosePrintQueryID(int id, DNSNode node, String ip) {
+        if (verboseTracing)
+            System.out.format("\n\nQuery ID     %d %s  %s --> %s\n",
+                    id, node.getHostName(), node.getType(), ip);
+    }
+
+    private static void verbosePrintResponseID(int id, boolean auth) {
+        if (verboseTracing)
+            System.out.format("Response ID: %d Authoritative = %s\n",
+                    id, auth);
     }
 
     private static void verbosePrintResourceRecord(ResourceRecord record, int rtype) {
