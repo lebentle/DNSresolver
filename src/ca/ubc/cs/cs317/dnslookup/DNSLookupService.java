@@ -259,14 +259,19 @@ public class DNSLookupService {
             answers[i] = DecodeResourceRecord(byteInput);
             System.out.println("I AM HERE");
             verbosePrintResourceRecord(answers[i], 0);
+            System.out.println("FIND ME");
             cache.addResult(answers[i]);
         }
         for (int j = 0; j < headerResponse.nscount; j++){
             nameservers[j] = DecodeResourceRecord(byteInput);
+            System.out.println("NAME SERVERS");
+            verbosePrintResourceRecord(nameservers[j], 0);
             cache.addResult(nameservers[j]);
         }
         for (int k = 0; k < headerResponse.arcount; k++) {
             ar[k] = DecodeResourceRecord(byteInput);
+            System.out.println("AR");
+            verbosePrintResourceRecord(ar[k], 0);
             cache.addResult(ar[k]);
 
         }
@@ -338,6 +343,7 @@ public class DNSLookupService {
         RecordType type = RecordType.getByCode(BytestoInt(bytes));
         byteInput.get(bytes,0,2);
         int classRR = BytestoInt(bytes);
+        bytes = new byte[4];
         byteInput.get(bytes,0,4);
         long ttl = BytestoLong(bytes);
         bytes = new byte[2];
@@ -473,8 +479,6 @@ public class DNSLookupService {
     // returns the first byte at the pointer location
     private static byte messageDecompression(int pointer, ByteBuffer byteInput) {
         int offset = (pointer ^ 0xc000); // xor
-        System.out.println(pointer);
-        System.out.println(offset);
         return byteInput.get(offset);
     }
 
@@ -490,7 +494,8 @@ public class DNSLookupService {
             return result.substring(0, result.length() - 1);
         // case where first two bits are 11 so it's a pointer
         } else if ((pointerOrLength & 0xc0) == 0xc0) {
-            int pointer = ((int) pointerOrLength << 8) + byteInput.get();
+            int b = byteInput.get();
+            int pointer = ((pointerOrLength & 0xff) << 8) + b;
             byte newPointerOrLength = messageDecompression(pointer, byteInput);
             return obtainMessage(newPointerOrLength, byteInput, result);
         // case where it is length
@@ -498,7 +503,9 @@ public class DNSLookupService {
             for (int i = 0; i < pointerOrLength; i++) {
                 result.append((char) byteInput.get());
             }
-            result.append(".");
+            if (pointerOrLength != 0) {
+                result.append(".");
+            }
             return obtainMessage(byteInput.get(), byteInput, result);
         }
     }
