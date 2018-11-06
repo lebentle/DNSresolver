@@ -260,7 +260,7 @@ public class DNSLookupService {
         if (answers.length != 0) {
             int cNames = 0; 
             for (int i =0; i < answers.length; i++) {
-                if (answers[i].getType() == RecordType.CNAME){
+                if (answers[i].getType() == RecordType.CNAME) {
                     cNames++;
                 } 
             } if (cNames == answers.length) {
@@ -275,7 +275,6 @@ public class DNSLookupService {
             for (int j =0; j< nameservers.length; j++) {
                 if (nameservers[j].getType() == RecordType.NS) {
                     Set<ResourceRecord> addnRecordToQuery = cache.getCachedResults(new DNSNode(nameservers[j].getTextResult(), RecordType.A));
-                    System.out.println(nameservers[j].getTextResult());
                     for (ResourceRecord rr :addnRecordToQuery){
                         retrieveResultsFromServer(node, rr.getInetResult());
                         return;
@@ -297,7 +296,7 @@ public class DNSLookupService {
             for (int i =0; i< addrecords.length; i++) {
                 if (addrecords[i].getType() == RecordType.A){
                     retrieveResultsFromServer(node, addrecords[i].getInetResult());
-                    break;
+                    return;
                 }
             }
         }
@@ -349,7 +348,6 @@ public class DNSLookupService {
             isError = true;
         }
         boolean authoritative = ((b3 & 0x4) >>> 2) == 1;
-        System.out.printf("authoritative is %d\n",((b3 & 0x4) >>> 2));
 
         // Checks RCODE to make sure no error
         int b4 = (byteInput.get() & 0x0f);
