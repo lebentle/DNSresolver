@@ -186,9 +186,6 @@ public class DNSLookupService {
         }
         currentIndirection = indirectionLevel;
         retrieveResultsFromServer(node,rootServer);
-
-        // TODO To be completed by the student
-
         return cache.getCachedResults(node);
     }
 
@@ -207,7 +204,6 @@ public class DNSLookupService {
         verbosePrintQueryID(id, node, server.getHostAddress());
 
         byte[] b = Arrays.copyOfRange(byteOutput.array(), 0, byteOutput.position());
-        System.out.println(bytesToHexString(b));
         DatagramPacket packet = new DatagramPacket(b,b.length,server,DEFAULT_DNS_PORT);
 
         // Send Packet; 
@@ -232,8 +228,6 @@ public class DNSLookupService {
         DatagramPacket recievedpacket = new DatagramPacket(bytes,bytes.length);
         try {
             socket.receive(recievedpacket);
-            System.out.println(recievedpacket.getPort());
-            System.out.println(recievedpacket.getAddress());
         } catch (IOException ex) {
             ex.printStackTrace();
             System.exit(1);
@@ -251,9 +245,6 @@ public class DNSLookupService {
             DecodeQuestion(byteInput);
         }
 
-      //   System.out.println("\n" + bytesToHexString(byteInput.array()));
-
-
         ResourceRecords records = ProcessAllResourceRecords(headerRes,byteInput);
         ResourceRecord[] answers = records.getAnswers();
         ResourceRecord[] addrecords = records.getAR();
@@ -266,21 +257,22 @@ public class DNSLookupService {
                     cNames++;
                 } 
             } if (cNames == answers.length) {
-                System.out.println("********");
-                getResults(new DNSNode(answers[0].getTextResult(), answers[0].getType()),currentIndirection + 1);
+                DNSNode newnode = new DNSNode(answers[0].getTextResult(), RecordType.A);
+                Set<ResourceRecord> finalIP = getResults(newnode,currentIndirection + 1);
+                for (ResourceRecord rr :finalIP){
+                    ResourceRecord rTransformed = new ResourceRecord(node.getHostName(),rr.getType(), answers[0].getTTL(),rr.getInetResult());
+                    cache.addResult(rTransformed);
             }
+        }
         } else if (answers.length == 0 && nameservers.length != 0){
             for (int j =0; j< nameservers.length; j++) {
                 // TODO: Ask Alvis if this is even possible 
                 if (nameservers[j].getType() == RecordType.NS) {
                         Set<ResourceRecord> addnRecordToQuery = cache.getCachedResults(new DNSNode(nameservers[j].getTextResult(), RecordType.A));
-                        System.out.println(addnRecordToQuery);
                         for (ResourceRecord rr :addnRecordToQuery){
                             Set<ResourceRecord> addnRecord = cache.getCachedResults(rr.getNode());
                             if (!addnRecord.isEmpty()){
                                 for (ResourceRecord addRec : addnRecord) {
-                                    System.out.println("Doing another query");
-                                    System.out.println(addRec.getInetResult());
                                     retrieveResultsFromServer(node, addRec.getInetResult());
                                     return;
                                 }
@@ -297,6 +289,7 @@ public class DNSLookupService {
                     }
                 }
             }
+
 
     public static ResourceRecords ProcessAllResourceRecords(HeaderResponse headerResponse,ByteBuffer byteInput) {
 
@@ -354,7 +347,6 @@ public class DNSLookupService {
             System.out.printf("Error: incorrect RCODE %d, expected 0\n",b4);
             isError = true;
         }
-        System.out.println(isError);
         // QDCOUnt // Change to some sort of loop
         byte[] bytes = new byte[2];
         byteInput.get(bytes,0,2);
