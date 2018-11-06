@@ -276,21 +276,16 @@ public class DNSLookupService {
                 for (ResourceRecord rr :finalIP){
                     ResourceRecord rTransformed = new ResourceRecord(node.getHostName(),rr.getType(), answers[0].getTTL(),rr.getInetResult());
                     cache.addResult(rTransformed);
+                }
             }
-        }
         } else if (answers.length == 0 && nameservers.length != 0){
             for (int j =0; j< nameservers.length; j++) {
-                // TODO: Ask Alvis if this is even possible 
                 if (nameservers[j].getType() == RecordType.NS) {
                         Set<ResourceRecord> addnRecordToQuery = cache.getCachedResults(new DNSNode(nameservers[j].getTextResult(), RecordType.A));
                         for (ResourceRecord rr :addnRecordToQuery){
-                            Set<ResourceRecord> addnRecord = cache.getCachedResults(rr.getNode());
-                            if (!addnRecord.isEmpty()){
-                                for (ResourceRecord addRec : addnRecord) {
-                                    retrieveResultsFromServer(node, addRec.getInetResult());
-                                    return;
-                                }
-                            }
+                            System.out.println("SENDING NEW QUERY");
+                            retrieveResultsFromServer(node, rr.getInetResult());
+                            return;
                         }
                     }
                 }
