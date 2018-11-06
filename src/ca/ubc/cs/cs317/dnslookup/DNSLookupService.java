@@ -205,12 +205,18 @@ public class DNSLookupService {
         ByteBuffer byteOutput = ByteBuffer.allocate(512);
         int id = FillHeaderQuery(byteOutput);
         FillQuestionSection(node, byteOutput);
-        verbosePrintQueryID(id, node, server.getHostAddress());
+        if (totalRetries == 1) {
+            // We skip printing this iteration because we print before
+            // retrying to use original ID
+            totalRetries++;
+        } else {
+            verbosePrintQueryID(id, node, server.getHostAddress());
+        }
 
         byte[] b = Arrays.copyOfRange(byteOutput.array(), 0, byteOutput.position());
         DatagramPacket packet = new DatagramPacket(b,b.length,server,DEFAULT_DNS_PORT);
 
-        // Send Packet; 
+        // Send Packet;
         try {
             socket.send(packet);
             socket.setSoTimeout(5000);
@@ -218,6 +224,7 @@ public class DNSLookupService {
             // Resend the query once if no request sent
             if (totalRetries < MAX_RETRY) {
                 totalRetries++;
+                verbosePrintQueryID(id, node, server.getHostAddress());
                 retrieveResultsFromServer(node, server);
                 return;
             }
@@ -235,6 +242,7 @@ public class DNSLookupService {
             // Resend the query once if no response received
             if (totalRetries < MAX_RETRY) {
                 totalRetries++;
+                verbosePrintQueryID(id, node, server.getHostAddress());
                 retrieveResultsFromServer(node, server);
                 return;
             }
@@ -476,6 +484,7 @@ public class DNSLookupService {
      *
      * @param byteOutput: byte array to fill 
      */  
+
 
     private static int FillHeaderQuery(ByteBuffer byteOutput) {
         // Allocate Random Random
