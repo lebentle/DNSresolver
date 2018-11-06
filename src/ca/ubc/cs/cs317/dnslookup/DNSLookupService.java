@@ -186,8 +186,10 @@ public class DNSLookupService {
             System.err.println("Maximum number of indirection levels reached.");
             return Collections.emptySet();
         }
+        if (cache.getCachedResults(node).isEmpty()){
+            retrieveResultsFromServer(node,rootServer);
+        }
         currentIndirection = indirectionLevel;
-        retrieveResultsFromServer(node,rootServer);
         return cache.getCachedResults(node);
     }
 
@@ -201,7 +203,7 @@ public class DNSLookupService {
      */
     private static void retrieveResultsFromServer(DNSNode node, InetAddress server) {
         ByteBuffer byteOutput = ByteBuffer.allocate(512);
-        int id = FillHeaderQuery(false, byteOutput);
+        int id = FillHeaderQuery(byteOutput);
         FillQuestionSection(node, byteOutput);
         verbosePrintQueryID(id, node, server.getHostAddress());
 
@@ -282,7 +284,6 @@ public class DNSLookupService {
                 }
             }
             // This is the case where the name servers IP is unnknown
-            //  retrieveResultsFromServer(new DNSNode(nameservers[0].getTextResult(),RecordType.A), rootServer);
             DNSNode currNodeName = node;
             for (int k =0; k < nameservers.length; k++) {
                 retrieveResultsFromServer(new DNSNode(nameservers[k].getTextResult(),RecordType.A), rootServer);
@@ -328,7 +329,7 @@ public class DNSLookupService {
         }
         return new ResourceRecords(answers,nameservers,ar);
     }
-
+   // Decodes the Header for a given Response 
    public static HeaderResponse DecodeHeaderResponse(int id, ByteBuffer byteInput) {
         // Checks Header to make sure proper id code returned 
         boolean isError = false;
@@ -369,6 +370,12 @@ public class DNSLookupService {
         return header;
     }
 
+        /**
+     * moves the position of the byteInput to a suitable Pos pass the Question 
+     *
+     * @param byteInput: is the response received by the socket 
+     */
+
     // function to move the position of the byteInput to a suitable Pos
     public static void DecodeQuestion(ByteBuffer byteInput) {
         int exitMark = byteInput.position();
@@ -378,6 +385,12 @@ public class DNSLookupService {
         exitMark += 5; // Get past QNAME 0x00 terminator, QTYPE, and QCLASS fields
         byteInput.position(exitMark);
     }
+
+    /**
+     * Decodes a Resource Record
+     *
+     * @param byteInput: is the response received by the socket 
+     */
 
     public static ResourceRecord DecodeResourceRecord(ByteBuffer byteInput) {
         // gets the exit position to set the bytebuffer
@@ -447,24 +460,30 @@ public class DNSLookupService {
         return getInt;
     }
 
-    // Method to print bytes to HexString 
-    public static String bytesToHexString(byte[] bytes){ 
+   /**
+     * Helper method to print a byte to a Hex String for debugging 
+     *
+     * @param bytes: byte array to print out
+     */   
+   public static String bytesToHexString(byte[] bytes){ 
         StringBuilder sb = new StringBuilder(); 
         for(byte b : bytes){ sb.append(String.format("%02x", b&0xff)); 
     } 
     return sb.toString(); 
 } 
+   /**
+     * Generates the Header for a Query
+     *
+     * @param byteOutput: byte array to fill 
+     */  
 
-    // Fills the Header Querry
-    private static int FillHeaderQuery(boolean response, ByteBuffer byteOutput) {
-        // some arbitary number
+    private static int FillHeaderQuery(ByteBuffer byteOutput) {
         // Allocate Random Random
         Random r = new Random();
         int randInt = r.nextInt(65535);
         byteOutput.put((byte) (randInt >>> 8));
         byteOutput.put((byte) randInt);
 
-        // TODO; Need to put these into byte array and do one Put 
         // This byte sets QR|   Opcode  |AA|TC|RD|RA
         byteOutput.put((byte) 0);
         // |RA|   Z    |   RCODE   | 
@@ -485,12 +504,16 @@ public class DNSLookupService {
         return randInt;
     }
 
-    // Fills out the Question Section into the ByteBuffer 
+   /**
+     * Generates the Question Section for a give Query
+     *
+     * @param ByteBuffer: byte array to fill 
+     * @param node: Has HostName and type we want to transform to bytes for Query 
+    */
     private static void FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
         // Generates QNAME 
         // loop through the string and change each element to a char and cast
         // it to a byte and place in byte array
-        // QNAME
         String str = node.getHostName();
         String[] strsSplit = str.split("\\.");
         byte[] b = new byte[str.length() + 2];
@@ -518,7 +541,12 @@ public class DNSLookupService {
         return;
     }
 
-    // returns the first byte at the pointer location
+    /**
+     * Returns the first byte at the pointer location
+     *
+     * @param ByteBuffer: byte array to fill 
+     * @param node: Has HostName and type we want to transform to bytes for Query 
+    */
     private static byte messageDecompression(int pointer, ByteBuffer byteInput) {
         int offset = (pointer ^ 0xc000); // xor
         byteInput.position(offset);
@@ -556,6 +584,8 @@ public class DNSLookupService {
             return obtainMessage(byteInput.get(), byteInput, result);
         }
     }
+
+    // Helper Functions for verbose printing
 
     private static void verbosePrintQueryID(int id, DNSNode node, String ip) {
         if (verboseTracing)
