@@ -271,7 +271,7 @@ public class DNSLookupService {
                     cNames++;
                 } 
             } if (cNames == answers.length) {
-                DNSNode newnode = new DNSNode(answers[0].getTextResult(), RecordType.A);
+                DNSNode newnode = new DNSNode(answers[0].getTextResult(), node.getType());
                 Set<ResourceRecord> finalIP = getResults(newnode,currentIndirection + 1);
                 for (ResourceRecord rr :finalIP){
                     ResourceRecord rTransformed = new ResourceRecord(node.getHostName(),rr.getType(), answers[0].getTTL(),rr.getInetResult());
@@ -282,7 +282,9 @@ public class DNSLookupService {
             for (int j =0; j< nameservers.length; j++) {
                 if (nameservers[j].getType() == RecordType.NS) {
                         Set<ResourceRecord> addnRecordToQuery = cache.getCachedResults(new DNSNode(nameservers[j].getTextResult(), RecordType.A));
+                        System.out.println(nameservers[j].getTextResult());
                         for (ResourceRecord rr :addnRecordToQuery){
+                            System.out.println(rr.getTextResult());
                             System.out.println("SENDING NEW QUERY");
                             retrieveResultsFromServer(node, rr.getInetResult());
                             return;
