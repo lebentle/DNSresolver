@@ -19,15 +19,17 @@ public class DNSLookupService {
 
     private static final int DEFAULT_DNS_PORT = 53;
     private static final int MAX_INDIRECTION_LEVEL = 10;
+    private static final int MAX_RETRY = 1;
 
     private static InetAddress rootServer;
     private static boolean verboseTracing = false;
     private static DatagramSocket socket;
+    private static int totalRetries = 0;
 
     private static DNSCache cache = DNSCache.getInstance();
 
     private static Random random = new Random();
-    private static int currentIndirection; 
+    private static int currentIndirection;
 
 
     /**
@@ -220,6 +222,12 @@ public class DNSLookupService {
                 System.exit(1);
             } 
         } catch (IOException exp) {
+                // Resend the query once if no request sent
+                if (totalRetries < MAX_RETRY) {
+                    totalRetries++;
+                    retrieveResultsFromServer(node, server);
+                    return;
+                }
                 exp.printStackTrace();
                 System.exit(1);
         }
@@ -229,6 +237,12 @@ public class DNSLookupService {
         try {
             socket.receive(recievedpacket);
         } catch (IOException ex) {
+            // Resend the query once if no response received
+            if (totalRetries < MAX_RETRY) {
+                totalRetries++;
+                retrieveResultsFromServer(node, server);
+                return;
+            }
             ex.printStackTrace();
             System.exit(1);
         }
