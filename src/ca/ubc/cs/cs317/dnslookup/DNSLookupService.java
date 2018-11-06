@@ -291,6 +291,17 @@ public class DNSLookupService {
                         }
                     }
                 }
+                // This is the case where the name servers IP is unnknown
+               //  retrieveResultsFromServer(new DNSNode(nameservers[0].getTextResult(),RecordType.A), rootServer);
+                DNSNode currNodeName = node;
+                for (int k =0; k < nameservers.length; k++) {
+                    retrieveResultsFromServer(new DNSNode(nameservers[k].getTextResult(),RecordType.A), rootServer);                    
+                    Set<ResourceRecord> nextResult = cache.getCachedResults(new DNSNode(nameservers[k].getTextResult(), RecordType.A));
+                    if (!nextResult.isEmpty()){
+                        retrieveResultsFromServer(currNodeName,(nextResult.iterator().next().getInetResult()));
+                        return;
+                    }
+                }
             } else if (answers.length == 0 && nameservers.length == 0){
                   for (int i =0; i< addrecords.length; i++) {
                         if (addrecords[i].getType() == RecordType.A){
