@@ -213,23 +213,16 @@ public class DNSLookupService {
             socket.send(packet);
             socket.setSoTimeout(5000);
         } catch (SocketTimeoutException ex){
-            // Try to resend time out
-            try {
-                socket.send(packet);
-                socket.setSoTimeout(5000);
-            } catch (IOException e) {
-                e.printStackTrace();
-                System.exit(1);
-            } 
+            // Resend the query once if no request sent
+            if (totalRetries < MAX_RETRY) {
+                totalRetries++;
+                retrieveResultsFromServer(node, server);
+                return;
+            }
         } catch (IOException exp) {
-                // Resend the query once if no request sent
-                if (totalRetries < MAX_RETRY) {
-                    totalRetries++;
-                    retrieveResultsFromServer(node, server);
-                    return;
-                }
-                exp.printStackTrace();
-                System.exit(1);
+            // IOException, no resend
+            exp.printStackTrace();
+            System.exit(1);
         }
         // receive Packet
         byte[] bytes = new byte[1024];
@@ -243,16 +236,16 @@ public class DNSLookupService {
                 retrieveResultsFromServer(node, server);
                 return;
             }
-            ex.printStackTrace();
-            System.exit(1);
         }
         ByteBuffer byteInput = ByteBuffer.wrap(bytes);
 
-        // Check the header of the reponse to see if valid 
         HeaderResponse headerRes = DecodeHeaderResponse(id,byteInput);
+
+        // Check the header of the reponse to see if valid 
         if (headerRes.isError) {
             return;
         }
+
         verbosePrintResponseID(id, headerRes.authoritative);
         // Jump ahead of the questions
         for (int i = 0; i < headerRes.qdcount; i++) {
@@ -278,40 +271,37 @@ public class DNSLookupService {
                     cache.addResult(rTransformed);
                 }
             }
-        } else if (answers.length == 0 && nameservers.length != 0){
+        } else if (answers.length == 0 && nameservers.length != 0) {
             for (int j =0; j< nameservers.length; j++) {
                 if (nameservers[j].getType() == RecordType.NS) {
-                        Set<ResourceRecord> addnRecordToQuery = cache.getCachedResults(new DNSNode(nameservers[j].getTextResult(), RecordType.A));
-                        System.out.println(nameservers[j].getTextResult());
-                        for (ResourceRecord rr :addnRecordToQuery){
-                            System.out.println(rr.getTextResult());
-                            System.out.println("SENDING NEW QUERY");
-                            retrieveResultsFromServer(node, rr.getInetResult());
-                            return;
-                        }
-                    }
-                }
-                // This is the case where the name servers IP is unnknown
-               //  retrieveResultsFromServer(new DNSNode(nameservers[0].getTextResult(),RecordType.A), rootServer);
-                DNSNode currNodeName = node;
-                for (int k =0; k < nameservers.length; k++) {
-                    retrieveResultsFromServer(new DNSNode(nameservers[k].getTextResult(),RecordType.A), rootServer);                    
-                    Set<ResourceRecord> nextResult = cache.getCachedResults(new DNSNode(nameservers[k].getTextResult(), RecordType.A));
-                    if (!nextResult.isEmpty()){
-                        retrieveResultsFromServer(currNodeName,(nextResult.iterator().next().getInetResult()));
+                    Set<ResourceRecord> addnRecordToQuery = cache.getCachedResults(new DNSNode(nameservers[j].getTextResult(), RecordType.A));
+                    System.out.println(nameservers[j].getTextResult());
+                    for (ResourceRecord rr :addnRecordToQuery){
+                        retrieveResultsFromServer(node, rr.getInetResult());
                         return;
                     }
                 }
-            } else if (answers.length == 0 && nameservers.length == 0){
-                  for (int i =0; i< addrecords.length; i++) {
-                        if (addrecords[i].getType() == RecordType.A){
-                            retrieveResultsFromServer(node, addrecords[i].getInetResult());
-                            break;
-                        }
-                    }
+            }
+            // This is the case where the name servers IP is unnknown
+            //  retrieveResultsFromServer(new DNSNode(nameservers[0].getTextResult(),RecordType.A), rootServer);
+            DNSNode currNodeName = node;
+            for (int k =0; k < nameservers.length; k++) {
+                retrieveResultsFromServer(new DNSNode(nameservers[k].getTextResult(),RecordType.A), rootServer);
+                Set<ResourceRecord> nextResult = cache.getCachedResults(new DNSNode(nameservers[k].getTextResult(), RecordType.A));
+                if (!nextResult.isEmpty()) {
+                    retrieveResultsFromServer(currNodeName,(nextResult.iterator().next().getInetResult()));
+                    return;
                 }
             }
-
+        } else if (answers.length == 0 && nameservers.length == 0) {
+            for (int i =0; i< addrecords.length; i++) {
+                if (addrecords[i].getType() == RecordType.A){
+                    retrieveResultsFromServer(node, addrecords[i].getInetResult());
+                    break;
+                }
+            }
+        }
+    }
 
     public static ResourceRecords ProcessAllResourceRecords(HeaderResponse headerResponse,ByteBuffer byteInput) {
 
@@ -350,14 +340,13 @@ public class DNSLookupService {
             getInt = getInt | (((headerInt[i] & 0xff) << (headerInt.length - i - 1) * 8));
         }
         if (getInt != id) {
-            System.out.printf("Error: incorrect header id %d, expected %d\n",getInt,id);
             isError = true;
         }
 
         byte b3 = byteInput.get();
         int b3toInt = ((b3 & 0xff) >>> 7);
-        if (b3toInt !=  1){
-            System.out.printf("Error: QR expected 1, but got %d\n",b3toInt);
+        if (b3toInt !=  1) {
+            isError = true;
         }
         boolean authoritative = ((b3 & 0x4) >>> 2) == 1;
         System.out.printf("authoritative is %d\n",((b3 & 0x4) >>> 2));
@@ -366,7 +355,6 @@ public class DNSLookupService {
         int b4 = (byteInput.get() & 0x0f);
 
         if (b4 != 0) {
-            System.out.printf("Error: incorrect RCODE %d, expected 0\n",b4);
             isError = true;
         }
         // QDCOUnt // Change to some sort of loop
@@ -433,6 +421,7 @@ public class DNSLookupService {
                 rr = new ResourceRecord(hostName, type, ttl, ip);
                 rdata = ip.toString();
             } catch (UnknownHostException e) {
+                // This should never get called since type is A or AAAA
                 System.err.println("Invalid server (" + e.getMessage() + ").");
                 System.exit(1);
             }
@@ -497,8 +486,6 @@ public class DNSLookupService {
 
         return randInt;
     }
-    // TODO:
-    // What if we send the request with the same ID? 
 
     // Fills out the Question Section into the ByteBuffer 
     private static void FillQuestionSection(DNSNode node, ByteBuffer byteOutput) {
